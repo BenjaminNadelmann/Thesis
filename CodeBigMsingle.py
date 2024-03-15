@@ -22,9 +22,9 @@ kappa = 0.4 #global required renewable penetration
 PCO2=55 #Price of CO2 per ton
 ecap_g=100 #Emission cap for generator
 conjectural_variation = 1 # this can be either 0 or 1, for now it is 0 
-beta = 1 # risk aversion (should probably be a binary variable)
+#beta = 1 # risk aversion (should probably be a binary variable)
 
-def solve_MIQP_Problem(pi_w, tau_tw, v_g, beta_tw, alpha, c_g, i_g, zeta_g, rho_gtw, qg0r, qg0c, kappa, PCO2, ecap_g, conjectural_variation, beta):
+def solve_MIQP_Problem(pi_w, tau_tw, v_g, beta_tw, alpha, c_g, i_g, zeta_g, rho_gtw, qg0r, qg0c, kappa, PCO2, ecap_g, conjectural_variation):
     m=gp.Model('One case Model')
     
     #Defining the primal variables: 
@@ -34,25 +34,26 @@ def solve_MIQP_Problem(pi_w, tau_tw, v_g, beta_tw, alpha, c_g, i_g, zeta_g, rho_
     d_tw=m.addVar(lb=0, ub=10000, vtype=GRB.CONTINUOUS, name="demand")
     R_gtw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="revenue")
     C_gtw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="cost")
-    sigma=m.addVar(vtype=GRB.BINARY, name="Auxiliary_Variable")
-    psi=m.addVar(vtype=GRB.BINARY, name="Auxiliary_Variable")
-    
+    sigma=m.addVar(vtype=GRB.BINARY, name="Auxiliary_Variable1")
+    psi=m.addVar(vtype=GRB.BINARY, name="Auxiliary_Variable2")
+    beta = m.addVar(vtype=GRB.BINARY, name="Auxiliary_Variable3")
+
     #Defining the Dual variables: :
-    p_tw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="Dual variable for the price")
-    eta_gtw=m.addVar(lb=0, ub=10500, vtype=GRB.CONTINUOUS, name="Dual variable for the quantity produced")
+    p_tw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="DV1")
+    eta_gtw=m.addVar(lb=0, ub=10000, vtype=GRB.CONTINUOUS, name="DV2")
     #underline_gamma_gtw=m.addVar(vtype=GRB.CONTINUOUS, name="Dual variable for the ramping limits") #ub=0, maybe this should be added though it's a ramping down (so maybe it's negative)
     #bar_gamma_gtw=m.addVar(vtype=GRB.CONTINUOUS, name="Dual variable for the ramping limits")
     
-    phi_g=m.addVar(lb=0, ub=10000, vtype=GRB.CONTINUOUS, name="Dual variable for the new capacity in generator")
-    delta_gtw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="daul variable for the profit function ")
-    Theta_gw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="daul variable for the auxilary variable")
-    muC_gtw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="daul variable for revenue")
-    muR_gtw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="daul variable for cost ")
-    l_gtw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="daul variable for emissions")
-    psi_gtw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="daul variable for the quantity")
-    xi_tw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="daul variable for the generator intensity")
-    vR_gtw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="daul variable for the revenue emission cap")
-    vC_gtw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="daul variable for the cost emission cap")
+    phi_g=m.addVar(lb=0, ub=10000, vtype=GRB.CONTINUOUS, name="DV3")
+    delta_gtw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="DV4")
+    Theta_gw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="DV5")
+    muC_gtw=m.addVar(lb=-100, ub=10000,vtype=GRB.CONTINUOUS, name="DV6")
+    muR_gtw=m.addVar(lb=-100, ub=10000,vtype=GRB.CONTINUOUS, name="DV7")
+    l_gtw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="DV8")
+    psi_gtw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="DV9")
+    xi_tw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="DV10")
+    vR_gtw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="DV11")
+    vC_gtw=m.addVar(lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="DV12")
 
     #The generators' profit optimization model
     Z_gtw = (p_tw*q_gtw-(c_g*q_gtw+PCO2*(R_gtw-C_gtw)))-i_g*qgbar
@@ -69,21 +70,20 @@ def solve_MIQP_Problem(pi_w, tau_tw, v_g, beta_tw, alpha, c_g, i_g, zeta_g, rho_
     m.addConstr(-(1-beta-delta_gtw)*pi_w*tau_tw*PCO2 - muR_gtw - vR_gtw == 0 , name="1.7d")
     m.addConstr((1-beta-delta_gtw)*pi_w*tau_tw*PCO2 - muC_gtw - vC_gtw == 0 , name="1.7e")
     m.addConstr((beta * 1/(1-v_g)) - delta_gtw - Theta_gw == 0, name="1.7f")
-    m.addConstr(-beta + delta_gtw == 0)
-    m.addConstr(epsilon_gtw - zeta_g * q_gtw == 0)
-    m.addConstr(R_gtw - ecap_g + epsilon_gtw == 0)
-    m.addConstr(C_gtw + ecap_g - epsilon_gtw == 0)
-
+    m.addConstr(-beta + delta_gtw == 0, name="1.7g")
+    m.addConstr(epsilon_gtw - zeta_g * q_gtw == 0, name="1.7h")
+    #m.addConstr(R_gtw - ecap_g + epsilon_gtw == 0, name="1.7i")
+    #m.addConstr(C_gtw + ecap_g - epsilon_gtw == 0, name="1.7j")
 
     #Big M and the the binary variables 
-    B1 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable")
-    B2 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable")
-    B3 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable")
-    B4 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable")
-    B5 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable")
-    B6 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable")
-    B7 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable")
-    B8 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable")
+    B1 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable1")
+    B2 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable2")
+    B3 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable3")
+    B4 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable4")
+    B5 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable5")
+    B6 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable6")
+    B7 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable7")
+    B8 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable8")
     M1 = 600000
     M2 = 10000
     #Linearization of the complementary constraints using big M:
@@ -136,7 +136,19 @@ def solve_MIQP_Problem(pi_w, tau_tw, v_g, beta_tw, alpha, c_g, i_g, zeta_g, rho_
     m.update()
     m.optimize()
 
+    if m.Status == GRB.INFEASIBLE:
+        m.computeIIS()
+        # Print out the IIS constraints and variables
+        print('\nThe following constraints and variables are in the IIS:')
+        for c in m.getConstrs():
+            if c.IISConstr: print(f'\t{c.constrname}: {m.getRow(c)} {c.Sense} {c.RHS}')
+
+        for v in m.getVars():
+            if v.IISLB: print(f'\t{v.varname} ≥ {v.LB}')
+            if v.IISUB: print(f'\t{v.varname} ≤ {v.UB}')
+
+    if m.Status == GRB.OPTIMAL:
+        print(q_gtw.x)
 
     return m
-
-solve_MIQP_Problem(pi_w, tau_tw, v_g, beta_tw, alpha_t, c_g, i_g, zeta_g, rho_gtw, qg0r, qg0c, kappa, PCO2, ecap_g, conjectural_variation, beta)
+solve_MIQP_Problem(pi_w, tau_tw, v_g, beta_tw, alpha_t, c_g, i_g, zeta_g, rho_gtw, qg0r, qg0c, kappa, PCO2, ecap_g, conjectural_variation)
