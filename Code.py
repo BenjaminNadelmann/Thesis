@@ -22,7 +22,6 @@ R_gtw=m.addVar(lb=0,vtype=GRB.CONTINUOUS, name="revenue")
 C_gtw=m.addVar(lb=0,vtype=GRB.CONTINUOUS, name="cost")
 sigma=m.addVar(vtype=GRB.BINARY, name="Auxiliary_Variable")
 psi=m.addVar(vtype=GRB.BINARY, name="Auxiliary_Variable")
-#beta=m.addVar(vtype=GRB.BINARY, name="Auxiliary_Variable")
 
 #Defining the Dual variables, NOT SURE IF THIS IS CORRECT!!, If not then we'll change it later:
 p_tw=m.addVar(vtype=GRB.CONTINUOUS, name="Dual variable for the price")
@@ -44,7 +43,6 @@ vC_gtw=m.addVar(vtype=GRB.CONTINUOUS, name="daul variable for the cost emission 
 
 
 #Defining the parameters - Prices are in Euro 
-
 pi_w=1 #Probability, for now it is 1 just to test one case   
 tau_tw=1 #Time, for now it is 1 just to test one case
 v_g=0 #This is confidence level for the generator, for now it is 0 just to test one case
@@ -101,30 +99,66 @@ m.addConstr(C_gtw - (epsilon_gtw - ecap_g) == 0, name="1.7j")
 #First I will define the complementarity constraints and then try to use SOS 
 #I did not implement constrains that had ramp down/up or the ones that are with t-1 
 
-complementary_condition_1= ((rho_gtw*(qg0c+qgbar)-q_gtw),eta_gtw) #Does Not work 
+#According to the gurobi dictionary the complementarity constraints 2-7 should work 
+#complementary_condition_1= ([(rho_gtw*(qg0c+qgbar)-q_gtw),eta_gtw]) #Does Not work 
 complementary_condition_2= (qgbar,phi_g) #this means that either qbar or phi_g can take a non zero value at a time
 complementary_condition_3=(q_gtw,psi_gtw)
 complementary_condition_4=(epsilon_gtw,l_gtw)
 complementary_condition_5=(R_gtw,muR_gtw)
 complementary_condition_6=(C_gtw,muC_gtw)
 complementary_condition_7=(psi_gtw,Theta_gtw)
-complementary_condition_8=(psi_gtw+Z_gtw-sigma, delta_gtw) # does not work 
+#complementary_condition_8=(psi_gtw+Z_gtw-sigma, delta_gtw) # does not work 
+
 
 
 #Adding the SOS constraints - is it correct? I do not know 
-m.addSOS(GRB.SOS_TYPE1, complementary_condition_1) #Does not work
+#According to the gurobi dictionary the SOS constraints 2-7 should work
+
+#m.addSOS(GRB.SOS_TYPE1, complementary_condition_1) #Does not work
 m.addSOS(GRB.SOS_TYPE1, complementary_condition_2)
 m.addSOS(GRB.SOS_TYPE1, complementary_condition_3)
 m.addSOS(GRB.SOS_TYPE1, complementary_condition_4)
 m.addSOS(GRB.SOS_TYPE1, complementary_condition_5)
 m.addSOS(GRB.SOS_TYPE1, complementary_condition_6)
 m.addSOS(GRB.SOS_TYPE1, complementary_condition_7)
-m.addSOS(GRB.SOS_TYPE1, complementary_condition_8) #Does not work
+#m.addSOS(GRB.SOS_TYPE1, complementary_condition_8) #Does not work
+
+#Maybe it is not a bad idea to use Big M method for the cc1 and cc8 after all? 
+
+#The new auxiliary variables and Big-M values for cc1, and cc8:
+B1 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable")
+B2 = m.addVar(vtype=GRB.BINARY, name="BigM Auxiliary_Variable")
+M1, M2 = 300, 1000
+
+#Big M for   cc1 
+m.addConstr((rho_gtw*(qg0c+qgbar)-q_gtw) >= 0 )
+m.addConstr(eta_gtw >= 0)
+m.addConstr((rho_gtw*(qg0c+qgbar)-q_gtw) <= M1*(1-B1) )
+m.addConstr(eta_gtw <= M1*B1)
+
+#Big M for   cc8
+m.addConstr((psi_gtw+Z_gtw-sigma) >= 0 )
+m.addConstr(delta_gtw >= 0)
+m.addConstr((psi_gtw+Z_gtw-sigma) <= M2*(1-B2) )
+m.addConstr(delta_gtw <= M2*B2)
+
+#That would be the SOS t1 for cc1 (at least the one that does not work)
+#m.addConstr((v1_plus - v1_minus) == ((rho_gtw*(qg0c+qgbar)-q_gtw)*eta_gtw)/2)
+
+#Then the constraints can be written out like this:
 
 
-#Objective Function
+#Objective Function 
+#There is a square in the objective function, is it correct? 
 m.setObjective(pi_w*tau_tw*(beta_tw*dtw-(1/2)*alpha*dtw**2-(c_g*q_gtw+PCO2*(R_gtw-C_gtw)))-i_g*qgbar, GRB.MAXIMIZE)
 
+# Set NonConvex parameter to 2 to handle quadratic objective function
+#m.setParam('NonConvex', 2) --> Maybe 
 
-#Running the optimization model:
+
+# Running the optimization model
+m.update()
 m.optimize()
+
+#How to retrieve dual variables after model optimization
+#For example, if you have a constraint indexed by i, you can access its dual value as model.getConstrs()[i].pi
