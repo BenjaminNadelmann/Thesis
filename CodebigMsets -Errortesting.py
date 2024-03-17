@@ -66,7 +66,7 @@ def MIQP_Sets(pi_w, tau_t, v_g, beta_w, alpha_t, c_g, i_g, zeta, rho, q_g0, kapp
         for gc in range(GC):
             for t in range(T): 
                 for w in range(W):
-                    Z_gtw = pi_w[w] * tau_t[t] * (p_tw[t,w] * q_gtw[g,t,w] - (c_g[g] * q_gtw[g,t,w] + P_CO2*(R_gtw[gc,t,w] - C_gtw[gc,t,w])))-i_g[g] * q_gbar[g]
+                    Z_gtw = pi_w[w] * tau_t[t] * (p_tw[t,w] * q_gtw[g,t,w] - (c_g[g] * q_gtw[g,t,w] - P_CO2*(R_gtw[gc,t,w] - C_gtw[gc,t,w])))-i_g[g] * q_gbar[g]
 
     #Defining constraints Upper Level:
 
@@ -87,10 +87,10 @@ def MIQP_Sets(pi_w, tau_t, v_g, beta_w, alpha_t, c_g, i_g, zeta, rho, q_g0, kapp
                         + eta_gtw[g,t,w] + zeta * xi_tw[t,w] - psi_gtw[g,t,w] == 0),name="1.7a")
                     m.addConstr((-eta_gtw[g,t,w] * rho - i_g[g] * (1 - beta_w[w] - delta_gtw[g,t,w]) - phi_g[g] == 0), name="1.7b")
                     m.addConstr(vC_gtw[g,t,w] - vR_gtw[g,t,w] - xi_tw[t,w] - l_gtw[g,t,w] == 0, name="1.7c")
-                    m.addConstr(- (1 - beta_w[w] - delta_gtw[g,t,w]) * pi_w[w] * tau_t[t] * P_CO2 - muR_gtw[gc,t,w] - vR_gtw[g,t,w] ==0, name="1.7d")
-                    m.addConstr((1 - beta_w[w] - delta_gtw[g,t,w]) * pi_w[w] * tau_t[t] * P_CO2 - muC_gtw[gc,t,w] - vC_gtw[g,t,w] == 0, name="1.7e")
-                    m.addConstr((beta_w[w] * pi_w[w]) / (1 - v_g[g]) - delta_gtw[g,t,w] - Theta_gw[g,w] == 0, name="1.7f")
-                    m.addConstr( - beta_w[w] + delta_gtw[g,t,w] == 0, name="1.7g")
+                    m.addConstr((1 - beta_w[w] - delta_gtw[g,t,w]) * pi_w[w] * tau_t[t] * P_CO2 - muR_gtw[gc,t,w] - vR_gtw[g,t,w] ==0, name="1.7d")
+                    m.addConstr(- (1 - beta_w[w] - delta_gtw[g,t,w]) * pi_w[w] * tau_t[t] * P_CO2 - muC_gtw[gc,t,w] - vC_gtw[g,t,w] == 0, name="1.7e")
+                    m.addConstr(- (beta_w[w] * pi_w[w]) / (1 - v_g[g]) - delta_gtw[g,t,w] - Theta_gw[g,w] == 0, name="1.7f")
+                    m.addConstr( beta_w[w] + delta_gtw[g,t,w] == 0, name="1.7g")
 
     #Constraints that only target the conventional generators
     for gc in range(GC):
@@ -143,7 +143,7 @@ def MIQP_Sets(pi_w, tau_t, v_g, beta_w, alpha_t, c_g, i_g, zeta, rho, q_g0, kapp
             for t in range(T): 
                 for w in range(W):
                     objective = pi_w[w] * tau_t[t] * (beta_w[w] * d_tw[t,w] - (1/2) * alpha_t[t] * d_tw[t,w]**2 - 
-                                (c_g[g] * q_gtw[g,t,w] + P_CO2*(R_gtw[gc,t,w] - C_gtw[gc,t,w])))-i_g[g] * q_gbar[g]            
+                                (c_g[g] * q_gtw[g,t,w] - P_CO2*(R_gtw[gc,t,w] - C_gtw[gc,t,w])))-i_g[g] * q_gbar[g]            
 
     m.setObjective(objective, GRB.MAXIMIZE)
 
@@ -162,11 +162,34 @@ def MIQP_Sets(pi_w, tau_t, v_g, beta_w, alpha_t, c_g, i_g, zeta, rho, q_g0, kapp
         for c in m.getConstrs():
             if c.IISConstr: print(f'\t{c.constrname}: {m.getRow(c)} {c.Sense} {c.RHS}')
 
-    for v in m.getVars():
-        if v.IISLB: print(f'\t{v.varname} ≥ {v.LB}')
-        if v.IISUB: print(f'\t{v.varname} ≤ {v.UB}')
+        for v in m.getVars():
+            if v.IISLB: print(f'\t{v.varname} ≥ {v.LB}')
+            if v.IISUB: print(f'\t{v.varname} ≤ {v.UB}')
 
-
+    if m.Status == GRB.OPTIMAL:
+        print('\nOptimal objective: %g' % m.objVal)
+        print('Quantity:', q_gtw[g,t,w].x)
+        print('New Capacity:', q_gbar[g].x)
+        print('Emission:', epsilon_gtw[g,t,w].x)
+        print('Demand:', d_tw[t,w].x)
+        print('Revenue:', R_gtw[gc,t,w].x)
+        print('Cost:', C_gtw[gc,t,w].x)
+        print('Auxiliary_Variable1:', sigma_g[g].x)
+        print('Auxiliary_Variable2:', psi_gw[g,w].x)
+        print('Auxiliary_Variable3:', beta_w[w].x)
+        print('Dual-1:', p_tw[t,w].x)
+        print('Dual-2:', eta_gtw[g,t,w].x)
+        print('Dual-5:', phi_g[g].x)
+        print('Dual-6:', delta_gtw[g,t,w].x)
+        print('Dual-7:', Theta_gw[g,w].x)
+        print('Dual-8:', muC_gtw[gc,t,w].x)
+        print('Dual-9:', muR_gtw[gc,t,w].x)
+        print('Dual-10:', l_gtw[g,t,w].x)
+        print('Dual-11:', psi_gtw[g,t,w].x)
+        print('Dual-12:', xi_tw[t,w].x)
+        print('Dual-13:', vR_gtw[g,t,w].x)
+        print('Dual-14:', vC_gtw[g,t,w].x)
+        
     return m
 
 MIQP_Sets(pi_w, tau_t, v_g, beta_w, alpha_t, c_g, i_g, zeta, rho, q_g0, kappa, P_CO2, ecap, conjectural_variation)
