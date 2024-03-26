@@ -555,13 +555,14 @@
 # from gurobipy import GRB
 # import gurobipy as gp
 # import random
+# import matplotlib.pyplot as plt
 
 # T = 5 #Number of Timesteps
 # W = 10 #Number of Scenarios
 # G = 5 #Number of Generators
 # GC = [1,1,1,0,0] #Generator placement (1 for conventional, 0 for renewable)
 # GR = [0,0,0,1,1] #Generator placement (0 for conventional, 1 for renewable)
-# RCP = [1,1,1,0.6,0.6] #Capacity factors for the generators, thought it could be used as a range
+# #RCP = [1,1,1,0.6,0.6] #Capacity factors for the generators, thought it could be used as a range
 # total_time = 8760  # Total sum required for each scenario
 # time_lb = 900
 # time_ub = 2750
@@ -595,7 +596,7 @@
 
 # #print(tau_tw)
 
-# #Beta_values = [50, 100, 150]
+# #Beta_values = [50, 75, 100, 125, 150]
 # Beta_values = [50, 61, 72, 83, 94, 106, 117, 128, 139, 150]
 
 # # Initialize an empty nested dictionary
@@ -611,18 +612,18 @@
 # #print(beta_tw)
 
 # c_g = {g : 10 if GC[g] else 0 for g in range(G)}
-# i_g = {g : 25000 if GC[g] else 35000 for g in range(G)}
-# alpha_t = {i: 0.4+0.25*i for i in range(T)}
-# rho_gtw = {(g, t, w): 0.75 if GC[g] else 0.45
+# i_g = {g : 200 if GC[g] else 50000 for g in range(G)}
+# alpha_t = {i: 0.4+0.2*i for i in range(T)}
+# rho_gtw = {(g, t, w): 0.75 if GC[g] else 0.25
 #            for g in range(G) for t in range(T) for w in range(W)}
 
 # #print(rho_gtw)
-# q_g0 = {g : 333 if GC[g] else 1150 for g in range(G)} #Initial capacity of conventional = 1000 MW, renewable = 2300 MW
-# kappa_w = {i: 0.5 for i in range(W)}
+# q_g0 = {g : 0 if GC[g] else 0 for g in range(G)} #Initial capacity of conventional = 1000 MW, renewable = 2300 MW
+# kappa_w = {i: 0 for i in range(W)}
 # Phi = -0.8
 # conjectural_t = {i: -alpha_t[i]*(1+Phi) for i in range(T)} #Not sure if these parameters are actually parameters
-# e_gCap = [10, 10, 10, 10, 10] #Emission cap for generator [ton]
-# P_CO2=55 #Price of CO2 per ton [Euros]
+# e_gCap = [100, 100, 100, 0, 0] #Emission cap for generator [ton]
+# P_CO2 = 55 #Price of CO2 per ton [Euros]
 # Zeta_g = {g : 1 if GC[g] else 0 for g in range(G)} #Intensity factor for generator [ton/MWh]
 
 # #print(conjectural_t)
@@ -644,6 +645,7 @@
 #     #Defining the Dual Variables:
 #     eta_gtw=m.addVars(G, T, W, lb=0, vtype=GRB.CONTINUOUS, name="Dual-1")
 #     l_gtw=m.addVars(G, T, W, lb=0, vtype=GRB.CONTINUOUS, name="Dual-2")
+#     xi_tw=m.addVars(T, W, lb=0, vtype=GRB.CONTINUOUS, name="Dual-3")
 
 #     #Defining the Binary variables:
 #     b1 = m.addVars(G, T, W, vtype=GRB.BINARY, name="Binary_Variable1")
@@ -652,7 +654,7 @@
 #     b4 = m.addVars(G, T, W, vtype=GRB.BINARY, name="Binary_Variable4")
 
 #     #Defining the Big M:
-#     M = 100000
+#     M = 200000
 
 #     #Defining the Primary Constraints
 #     for t in range(T):
@@ -666,16 +668,20 @@
 #                 m.addConstr(eps_gtw[g,t,w] <= M * (1-b4[g,t,w]), name="BigMemis1")
 #                 m.addConstr(l_gtw[g,t,w] <= M * b4[g,t,w], name="BigMemis2")
 
+#                 m.addConstr(pi_w[w] * tau_tw[t,w] * P_CO2 - xi_tw[t,w] == 0)
+
 #     for w in range(W):
 #         m.addConstr(gp.quicksum(tau_tw[t,w] * gp.quicksum(q_gtw[g,t,w] for g in (3,4)) for t in range(T)) #Only renewable generators should be considered global penetration
 #                     >= kappa_w[w] * gp.quicksum(tau_tw[t,w] * d_tw[t,w] for t in range(T)), name="1e")
-   
+
 #     #Defining the complementarity constraints
 #     for g in range(G):
 #         for t in range(T):
 #             for w in range(W):
-#                 m.addConstr(-pi_w[w] * tau_tw[t,w] * (p_tw[t,w] + conjectural_t[t] * q_gtw[g,t,w] - c_g[g]) + eta_gtw[g,t,w] >= 0, name="BigM1")
-#                 m.addConstr(-pi_w[w] * tau_tw[t,w] * (p_tw[t,w] + conjectural_t[t] * q_gtw[g,t,w] - c_g[g]) + eta_gtw[g,t,w] <= M * (1-b1[g,t,w]), name="BigM2")
+#                 m.addConstr(-pi_w[w] * tau_tw[t,w] * (p_tw[t,w] + conjectural_t[t] * q_gtw[g,t,w] - c_g[g])
+#                              + eta_gtw[g,t,w] + Zeta_g[g] * xi_tw[t,w] >= 0, name="BigM1")
+#                 m.addConstr(-pi_w[w] * tau_tw[t,w] * (p_tw[t,w] + conjectural_t[t] * q_gtw[g,t,w] - c_g[g])
+#                              + eta_gtw[g,t,w] + Zeta_g[g] * xi_tw[t,w] <= M * (1-b1[g,t,w]), name="BigM2")
 #                 m.addConstr(q_gtw[g,t,w] <= M * b1[g,t,w], name="BigM3")
 
 #                 m.addConstr(rho_gtw[g,t,w] * (q_g0[g] + q_gbar[g]) - q_gtw[g,t,w] >= 0, name="BigM7")
@@ -712,18 +718,74 @@
  
 #     if m.Status == GRB.OPTIMAL:
 #         m.printAttr('X')
+#         sums_by_scenario = np.zeros(W)
+ 
+#         # Iterate through scenarios
+#         for scenario in range(W):
+#             # Initialize the sum for this scenario
+#             scenario_sum = 0
+ 
+#             # Iterate through generators and time values
+#             for g in (0,1,2):
+#                 for t in range(T):
+#                     # Replace with your actual Gurobi variable indexing
+#                     # Assuming q_gtw[g, t, w].X gives the value for each w
+#                     scenario_sum += q_gtw[g, t, scenario].X  # Corrected indexing here
+ 
+#             # Store the scenario sum in the array
+#             sums_by_scenario[scenario] = scenario_sum
+ 
+#         print("Summed values for each scenario:")
+       
+#         Ren = np.zeros(W)
+ 
+#         # Iterate through scenarios
+#         for scenario in range(W):
+#             # Initialize the sum for this scenario
+#             scenario_sum = 0
+ 
+#             # Iterate through generators and time values
+#             for g in (3,4):
+#                 for t in range(T):
+#                     # Replace with your actual Gurobi variable indexing
+#                     # Assuming q_gtw[g, t, w].X gives the value for each w
+#                     scenario_sum += q_gtw[g, t, scenario].X  # Corrected indexing here
+ 
+#             # Store the scenario sum in the array
+#             Ren[scenario] = scenario_sum
+ 
+#         print("Summed values for each scenario:")
+ 
+#     return sums_by_scenario, Ren
 
-#     return m
+# Quantity, Quantity2 = MIQP_RES_Emis(pi_w, tau_tw, beta_tw, alpha_t, c_g, i_g, rho_gtw, q_g0, kappa_w, conjectural_t, T, W, G, GR, GC, e_gCap, P_CO2, Zeta_g)
 
-# MIQP_RES_Emis(pi_w, tau_tw, beta_tw, alpha_t, c_g, i_g, rho_gtw, q_g0, kappa_w, conjectural_t, T, W, G, GR, GC, e_gCap, P_CO2, Zeta_g)
+# print(Quantity)
+# print(Quantity2)
+# S = np.arange(0,10)
+# print(S)
+# Quantities = {'Ren': Quantity2,'Conv': Quantity,}
 
+# fig, ax = plt.subplots()
+# bottom = np.zeros(10)
+
+# bar_labels = ('S0', 'S1', 'S2', 'S3','S4', 'S5','S6', 'S7','S8', 'S9')
+
+# for boolean, weight_count in Quantities.items():
+#     p = ax.bar(bar_labels, weight_count, label=boolean, bottom=bottom)
+#     bottom += weight_count
+
+# ax.set_title("Total Quantity of Energy Produced by Generators")
+# ax.legend(loc="upper left")
+
+# plt.show()
 
 ###--------------------------------------------------------------------------------------------------------------------------------------------------------###
 
 # RES set model averse - Constraints BigM14 and 8f are not working when both are included
 
 #I had the same problem with the Theta_gw dual in the single case where constraint 8f also didn't work, but I think it's necessary to have it in the model,
-# because when muted it makes the results of the model totally wrong. BigM14 seems to be the better one to mute as the results at least seem to be more reasonable.
+#because when muted it makes the results of the model totally wrong. BigM14 seems to be the better one to mute as the results at least seem to be more reasonable.
 
 import numpy as np
 from gurobipy import GRB
@@ -785,17 +847,17 @@ for t in range(T):
 #print(beta_tw)
 
 c_g = {g : 10 if GC[g] else 0 for g in range(G)}
-i_g = {g : 250 if GC[g] else 350 for g in range(G)}
+i_g = {g : 2500 if GC[g] else 3500 for g in range(G)}
 alpha_t = {i: 0.4+0.25*i for i in range(T)}
 rho_gtw = {(g, t, w): 0.75 if GC[g] else 0.45
            for g in range(G) for t in range(T) for w in range(W)}
 
 #print(rho_gtw)
-q_g0 = {g : 100 if GC[g] else 300 for g in range(G)} #Initial capacity of conventional = 1000 MW, renewable = 2300 MW
+q_g0 = {g : 333 if GC[g] else 1150 for g in range(G)} #Initial capacity of conventional = 1000 MW, renewable = 2300 MW
 kappa_w = {i: 0.5 for i in range(W)}
 Phi = 0
 conjectural_t = {i: -alpha_t[i]*(1+Phi) for i in range(T)} #Not sure if these parameters are actually parameters
-e_gCap = [10, 10, 10, 10, 10] #Emission cap for generator [ton]
+e_gCap = [10, 10, 10, 0, 0] #Emission cap for generator [ton]
 P_CO2=55 #Price of CO2 per ton [Euros]
 Zeta_g = {g : 1 if GC[g] else 0 for g in range(G)} #Intensity factor for generator [ton/MWh]
 
@@ -818,7 +880,7 @@ def MIQP_RES_Ave_Emis(pi_w, tau_tw, beta_tw, alpha_t, c_g, i_g, rho_gtw, q_g0, k
     eta_gtw=m.addVars(G, T, W, lb=0, vtype=GRB.CONTINUOUS, name="Dual-1")
     Theta_gw=m.addVars(G, W, lb=0, vtype=GRB.CONTINUOUS, name="Dual-2")
     psi_gw=m.addVars(G, W, lb=0, vtype=GRB.BINARY, name="Dual-3")
-    xi_tw=m.addVars(T, W, lb=0, ub=10000,vtype=GRB.CONTINUOUS, name="Dual-4")
+    xi_tw=m.addVars(T, W, lb=0, vtype=GRB.CONTINUOUS, name="Dual-4")
 
     #Defining the Binary variables:
     b1 = m.addVars(G, T, W, vtype=GRB.BINARY, name="Binary_Variable1")
@@ -840,7 +902,7 @@ def MIQP_RES_Ave_Emis(pi_w, tau_tw, beta_tw, alpha_t, c_g, i_g, rho_gtw, q_g0, k
             for g in (0,1,2): #Only conventional generators should be considered for emissions
                 m.addConstr(eps_gtw[g,t,w] - Zeta_g[g] * q_gtw[g,t,w] == 0, name="emission_constraint")
 
-                #m.addConstr(-Theta_gw[g,w] * pi_w[w] * tau_tw[t,w] * P_CO2 - xi_tw[t,w] == 0)
+                m.addConstr(Theta_gw[g,w] * pi_w[w] * tau_tw[t,w] * P_CO2 - xi_tw[t,w] == 0)
                 #Thinking that there might be some extra constraint regarding the partial derivative to the emission (one above)) though when used it makes solution infeasible/unbounded.
 
     for w in range(W):
@@ -868,9 +930,9 @@ def MIQP_RES_Ave_Emis(pi_w, tau_tw, beta_tw, alpha_t, c_g, i_g, rho_gtw, q_g0, k
 
         m.addConstr(gp.quicksum(Theta_gw[g,w] for w in range(W)) == 1, name="8f") #This is the constraint that is not working if muted it works
 
-        # #for variables and parameters with purely g and omega
+        #for variables and parameters with purely g and omega
         for w in range(W):
-            #m.addConstr(pi_w[w] / (1-v_g[g]) - Theta_gw[g,w] == 0, name="BigM10") Constraints BigM10 - BigM12 should probably be exchanged with this one.
+            #m.addConstr(-(pi_w[w] / (1-v_g[g])) - Theta_gw[g,w] == 0, name="BigM10") #Constraints BigM10 - BigM12 should probably be exchanged with this one.
 
             m.addConstr(pi_w[w] / (1-v_g[g]) - Theta_gw[g,w] >= 0, name="BigM10")
             m.addConstr(pi_w[w] / (1-v_g[g]) - Theta_gw[g,w] <= M * (1-b4[g,w]), name="BigM11")
@@ -916,3 +978,4 @@ def MIQP_RES_Ave_Emis(pi_w, tau_tw, beta_tw, alpha_t, c_g, i_g, rho_gtw, q_g0, k
 MIQP_RES_Ave_Emis(pi_w, tau_tw, beta_tw, alpha_t, c_g, i_g, rho_gtw, q_g0, kappa_w, conjectural_t, T, W, G, GR, v_g, e_gCap, P_CO2, Zeta_g)
 
 ###--------------------------------------------------------------------------------------------------------------------------------------------------------###
+
