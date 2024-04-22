@@ -5,18 +5,20 @@ from gurobipy import GRB
 import gurobipy as gp
 import random
 import matplotlib.pyplot as plt
+from scipy.stats import multivariate_normal
 
 ### Initialize parameter values
 
 G = 3 #Number of Conventional Generators
 J = 3 #Number of Renewable Generators
-T = 3 #Number of Timesteps
-W = 3 #Number of Scenarios
+T = 10 #Number of Timesteps
+W = 10 #Number of Scenarios
+np.random.seed(221)
 
 pi_w = {i: 1/W for i in range(W)}
 
-# tau_values = [1, 1, 1]
-tau_values = [24, 48, 96] #Weekly timetable
+tau_values = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+# tau_values = [24, 48, 96] #Weekly timetable
 #tau_values = [120, 240, 360] #Monthly timetable
 #tau_values = [2920, 2920, 2920]
 #Beta_values = [50, 61, 72, 83, 94, 106, 117, 128, 139, 150]
@@ -33,53 +35,48 @@ for w in range(W):
 
 #print(tau_tw)
 
-Beta_values = [50, 100, 150]
-#Beta_values = [50, 61, 72, 83, 94, 106, 117, 128, 139, 150]
+Beta_tw_mean = np.array([150])
+Beta_tw_std = 2.5
+Beta_tw_sigma = np.diag(Beta_tw_mean * Beta_tw_std)
+Beta_tw = multivariate_normal(mean = Beta_tw_mean, cov = Beta_tw_sigma).rvs(size =T * W).reshape(T, W)
+# print(Beta_tw)
 
-# Initialize an empty nested dictionary
-beta_tw = {}
+flat_beta_tw = Beta_tw.flatten()
 
-# Populate the nested dictionary with values
-for t in range(T):
-    for w in range(W):
-        key = (t, w)
-        value = Beta_values[w]  # Extract the value corresponding to the timestep
-        beta_tw[key] = value
-
-#print(beta_tw)
-
-#c_g = {g : 10 for g in range(G)}
-c_g = {0: 20, 1: 31, 2: 15}
-#i_g = {g : 25000 for g in range(G)}
-i_g = {0: 32500, 1: 23600, 2: 42000}
-
-#i_j = {j : 50000 for j in range(J)}
-i_j = {0: 81500, 1: 51500, 2: 67000}
-
-alpha_t = {t: 0.025+0.025*t for t in range(T)}
-
-#rho_gtw = {(g, t, w): 0.75 for g in range(G) for t in range(T) for w in range(W)}
-values_for_rhog = [0.75, 0.60, 0.85]
-
-rho_gtw = {}
-
-for g in range(G):
-    for t in range(T):
-        for w in range(W):
-            rho_gtw[(g, t, w)] = values_for_rhog[g]
-
-#rho_jtw = {(j, t, w): 0.25 for j in range(J) for t in range(T) for w in range(W)}
-values_for_rhoj = [0.40, 0.25, 0.33]
-
-rho_jtw = {}
-
-for j in range(J):
-    for t in range(T):
-        for w in range(W):
-            rho_jtw[(j, t, w)] = values_for_rhoj[j]
+beta_tw = {(i // Beta_tw.shape[1], i % Beta_tw.shape[1]): flat_beta_tw[i] for i in range(len(flat_beta_tw))}
+# print(beta_tw)
 
 
-#print(rho_gtw)
+c_g = {0: 23, 1: 28, 2: 17}
+
+i_g = {0: 20, 1: 13, 2: 25}
+
+i_j = {0: 45, 1: 35, 2: 40}
+
+alpha_t = {t: 0.005 for t in range(T)}
+
+Rho_gtw_mean =  np.array([0.75, 0.60, 0.85])
+Rho_gtw_std = 0.001
+Rho_gtw_sigma = np.diag(Rho_gtw_mean * Rho_gtw_std)
+Rho_gtw = multivariate_normal(mean = Rho_gtw_mean, cov = Rho_gtw_sigma).rvs(size =T * W).reshape(G, T, W)
+# print(Rho_gtw)
+
+flat_rho_gtw = Rho_gtw.flatten()
+
+rho_gtw = {(i // Rho_gtw.shape[1] // Rho_gtw.shape[2], (i // Rho_gtw.shape[2]) % Rho_gtw.shape[1], i % Rho_gtw.shape[2]): flat_rho_gtw[i] for i in range(len(flat_rho_gtw))}
+# print(rho_gtw)
+
+Rho_jtw_mean =  np.array([0.40, 0.25, 0.33])
+Rho_jtw_std = 0.001
+Rho_jtw_sigma = np.diag(Rho_jtw_mean * Rho_jtw_std)
+Rho_jtw = multivariate_normal(mean = Rho_jtw_mean, cov = Rho_jtw_sigma).rvs(size =T * W).reshape(G, T, W)
+# print(Rho_jtw)
+
+flat_rho_jtw = Rho_jtw.flatten()
+
+rho_jtw = {(i // Rho_jtw.shape[1] // Rho_jtw.shape[2], (i // Rho_jtw.shape[2]) % Rho_jtw.shape[1], i % Rho_jtw.shape[2]): flat_rho_jtw[i] for i in range(len(flat_rho_jtw))}
+# print(rho_jtw)
+
 # q_g0 = {g : 500 for g in range(G)} 
 q_g0 = {0: 2030, 1: 2460, 2: 2275}
 
@@ -88,13 +85,13 @@ q_j0 = {0: 4750, 1: 5370, 2: 5020}
 
 kappa_rw = {w: 0.45 for w in range(W)} #Check for percentage of renewable penetration
 kappa_cw = {w: 0.45 for w in range(W)} #Check for percentage of conventional penetration
-Phi = -1
+Phi = -0
 conjectural_t = {i: -alpha_t[i]*(1+Phi) for i in range(T)} #Not sure if these parameters are actually parameters
 
 P_CO2_max = 30
 #P_CO2_tw = {(t, w): 180 for t in range(T) for w in range(W)}
 
-P_CO2_values = [55, 55, 55]
+P_CO2_values = [75, 75, 75, 75, 75, 75, 75, 75, 75, 75]
 
 P_CO2_tw = {}
 
@@ -105,30 +102,23 @@ for t in range(T):
         value = P_CO2_values[w]  # Extract the value corresponding to the timestep
         P_CO2_tw[key] = value
 
-epsilon_max_g = {0: 4000, 1: 5000, 2: 4500}
-epsilon_cap_g = {0: 4000, 1: 5000, 2: 4500}
+epsilon_max_g = {0: 10000, 1: 12000, 2: 11000}
+epsilon_cap_g = {0: 10000, 1: 12000, 2: 11000}
 
-#xi_gtw = {(g, t, w): 1 for g in range(G) for t in range(T) for w in range(W)}
-values_for_xi = [0.8, 1, 0.9]
+Xi_gtw_mean =  np.array([0.7, 0.9, 0.8])
+Xi_gtw_std = 0.001
+Xi_gtw_sigma = np.diag(Xi_gtw_mean * Xi_gtw_std)
+Xi_gtw = multivariate_normal(mean = Xi_gtw_mean, cov = Xi_gtw_sigma).rvs(size =T * W).reshape(G, T, W)
+# print(Xi_gtw)
 
-xi_gtw = {}
+flat_xi_gtw = Xi_gtw.flatten()
 
-for g in range(G):
-    for t in range(T):
-        for w in range(W):
-            xi_gtw[(g, t, w)] = values_for_xi[g]
+xi_gtw = {(i // Xi_gtw.shape[1] // Xi_gtw.shape[2], (i // Xi_gtw.shape[2]) % Xi_gtw.shape[1], i % Xi_gtw.shape[2]): flat_xi_gtw[i] for i in range(len(flat_xi_gtw))}
+# print(xi_gtw)
 
-v = 0
+v = 0.2
 beta = 0.5 #When == 0 then the model is risk neutral and the slackness conditions 7 and 15 aren't violated
 
-# I'm getting more and more convinced that a timestep parameter tau_tw is needed to make the earnings of the generators more realistic
-# and also make the remaining constraints work out as the biggest problem rn. is that the profit of the generators is pitifully small. 
-
-#I have now tried this and it doesn't fix anything rather makes it worse. The idea of getting a bigger profit is correct, but the emissions and costs also increase
-#So either there must be a very specific relationship between the profits and costs that needs to be found for the model to work else, idk what to do.
-
-#Another important observation regarding the risk aversion parameter v is that if the profit constraint is not active the value of v doesn't change the results,
-#while when the profit constraints are active it changes the results significantly. As it maximizes the expected profit of the lower tail of the distribution
 
 ###------------------------------------------------------------------Making Optimization model-------------------------------------------------------------------###
 
@@ -146,13 +136,13 @@ def Model(pi_w, tau_tw, beta_tw, c_g, i_g, i_j, alpha_t, rho_gtw, rho_jtw, q_g0,
     q_gbar = m.addVars(G, lb=0, vtype=GRB.CONTINUOUS, name = "q_gbar")
     E_g = m.addVars(G, lb=0, vtype=GRB.CONTINUOUS, name = "E_g")
     gamma_gw = m.addVars(G, W, lb=0, vtype=GRB.CONTINUOUS, name = "gamma_gw")
-    sigma_g = m.addVars(G, lb=0, vtype=GRB.CONTINUOUS, name = "sigma_g")
+    sigma_g = m.addVars(G, vtype=GRB.CONTINUOUS, name = "sigma_g")
 
     ## For Renewable Generators (j)
     q_jtw = m.addVars(J, T, W, lb=0, vtype=GRB.CONTINUOUS, name = "q_jtw")
     q_jbar = m.addVars(J, lb=0, vtype=GRB.CONTINUOUS, name = "q_jbar")
     gamma_jw = m.addVars(J, W, lb=0, vtype=GRB.CONTINUOUS, name = "gamma_jw")
-    sigma_j = m.addVars(J, lb=0, vtype=GRB.CONTINUOUS, name = "sigma_j")
+    sigma_j = m.addVars(J, vtype=GRB.CONTINUOUS, name = "sigma_j")
 
     ### Dual variables
 
@@ -198,25 +188,25 @@ def Model(pi_w, tau_tw, beta_tw, c_g, i_g, i_j, alpha_t, rho_gtw, rho_jtw, q_g0,
     ### Big-M values - Values work for each timestep and scenario, not the sum of them 
 
     ## Primary
-    M_p1 = 4000         #Reasoning: Includes the balance between capacity and production for each timestep and scenario 
-    M_p2 = 12000        #Reasoning: With the max E_gtw of 6000 and a cap of 5000 then 12000 should be sufficient #only used for conventional generators
-    M_p3 = 6000         #Reasoning: With an emission cap of 5000 then 6000 seems fullfilling #only used for conventional generators
-    M_p4 = 1500         #Reasoning: Production quantity - can be quite low as it's the maximum for each timestep and scenario    
-    M_p5 = 7000         #Reasoning: As the new capacity shouldn't be too high and the initial max is 5370 then 7000 should be sufficient
-    M_p6 = 3250000      #Reasoning: Not really sure but as it have an impact on the profit then through trial & error 3250000 should be sufficient #Results differ greatly depending on value
-    M_p7 = 10000000     #Reasoning: Value doesn't really change much no matter what input is given. Probably because of slackness condition violation
-    M_p8 = 2500         #Reasoning: Started at 12000 ended at 2500 to not have any numerical mistakes #only used for conventional generators
-    M_p9 = 6000         #Reasoning: With an emission cap of 5000 then 6000 seems fullfilling #only used for conventional generators
+    M_p1 = 7500          #Reasoning: Includes the balance between capacity and production for each timestep and scenario 
+    M_p2 = 18000         #Reasoning: With the max E_gtw of 6000 and a cap of 5000 then 12000 should be sufficient #only used for conventional generators
+    M_p3 = 18000         #Reasoning: With an emission cap of 5000 then 6000 seems fullfilling #only used for conventional generators
+    M_p4 = 7500          #Reasoning: Production quantity - can be quite low as it's the maximum for each timestep and scenario    
+    M_p5 = 21000         #Reasoning: As the new capacity shouldn't be too high and the initial max is 5370 then 7000 should be sufficient
+    M_p6 = 870000        #Reasoning: Not really sure but as it have an impact on the profit then through trial & error 3250000 should be sufficient #Results differ greatly depending on value
+    M_p7 = 7000          #Reasoning: Value doesn't really change much no matter what input is given. Probably because of slackness condition violation
+    M_p8 = 180000         #Reasoning: Started at 12000 ended at 2500 to not have any numerical mistakes #only used for conventional generators
+    M_p9 = 180000         #Reasoning: With an emission cap of 5000 then 6000 seems fullfilling #only used for conventional generators
     
     ## Dual - 3 times the primary values besides, M_d5 which is 100000 (needed for the dual of investment costs), and m_d6 which doesn't need the higher dual value
-    M_d1 = 12000        
-    M_d2 = 36000        #only used for conventional generators
+    M_d1 = 20000        
+    M_d2 = 18000        #only used for conventional generators
     M_d3 = 18000        #only used for conventional generators
-    M_d4 = 4500      
-    M_d5 = 100000        
-    M_d6 = 5500000     
-    M_d7 = 30000000    
-    M_d8 = 7500         #only used for conventional generators
+    M_d4 = 20000      
+    M_d5 = 60000        
+    M_d6 = 45000     
+    M_d7 = 20000    
+    M_d8 = 18000        #only used for conventional generators
     M_d9 = 18000        #only used for conventional generators
 
     # M_p1, M_p2, M_p3, M_p4, M_p5, M_p6, M_p7, M_p8, M_p9 = 20000000, 20000000, 20000000, 20000000, 20000000, 20000000, 20000000, 20000000, 20000000
@@ -243,28 +233,27 @@ def Model(pi_w, tau_tw, beta_tw, c_g, i_g, i_j, alpha_t, rho_gtw, rho_jtw, q_g0,
     for g in range(G):
         for t in range(T):
             for w in range(W):
-                m.addConstr((beta - (Delta_gw[g,w] / pi_w[w]) - 1) * pi_w[w] * tau_tw[t,w] * (p_tw[t,w] + (conjectural_t[t] * q_gtw[g,t,w]) - c_g[g]) + eta_gtw[g,t,w] - \
-                zeta_gtw[g,t,w] + (P_CO2_tw[t,w] * tau_tw[t,w] * Delta_gw[g,w] - pi_w[w] * tau_tw[t,w] * (beta-1) * P_CO2_tw[t,w] - mu_gtw[g,t,w]) * xi_gtw[g,t,w]  == 0, name="1.5a")
+                m.addConstr(-(1 - beta) * (pi_w[w] * tau_tw[t,w] * (p_tw[t,w] + (conjectural_t[t] * q_gtw[g,t,w]) - c_g[g]) - pi_w[w] * tau_tw[t,w] * P_CO2_tw[t,w] * xi_gtw[g,t,w]) - \
+                            Delta_gw[g,w] * (tau_tw[t,w] * (p_tw[t,w] + (conjectural_t[t] * q_gtw[g,t,w]) - c_g[g]) - tau_tw[t,w] * P_CO2_tw[t,w] * xi_gtw[g,t,w]) + \
+                                eta_gtw[g,t,w] - zeta_gtw[g,t,w] - mu_gtw[g,t,w] * xi_gtw[g,t,w] == 0, name="1.5a")
 
                 m.addConstr(mu_gtw[g,t,w] - nu_min_gtw[g,t,w] + nu_max_gtw[g,t,w] == 0, name="1.5c") 
  
-                m.addConstr((beta - 1) * (pi_w[w] * tau_tw[t,w] * P_CO2_tw[t,w] - P_CO2_max) - Delta_gw[g,w] * (tau_tw[t,w] * P_CO2_tw[t,w] - P_CO2_max) + \
-                            (1 / abs(T)) * mu_gtw[g,t,w] - nu_g_min[g] + nu_g_cap[g] == 0, name="1.5d")
+                # m.addConstr((beta - 1) * (pi_w[w] * tau_tw[t,w] * P_CO2_tw[t,w] - P_CO2_max) - Delta_gw[g,w] * (tau_tw[t,w] * P_CO2_tw[t,w] - P_CO2_max) + \
+                #             (1 / abs(T)) * mu_gtw[g,t,w] - nu_g_min[g] + nu_g_cap[g] == 0, name="1.5d")
+                
+                m.addConstr(-(1 - beta) * gp.quicksum(pi_w[w] * tau_tw[t,w] * P_CO2_tw[t,w] - P_CO2_max for w in range(W)) - gp.quicksum(Delta_gw[g,w] * tau_tw[t,w] * \
+                             P_CO2_tw[t,w] - P_CO2_max for w in range(W)) + (1 / abs(T)) * mu_gtw[g,t,w] - nu_g_min[g] + nu_g_cap[g] == 0, name="1.5d")
 
-                m.addConstr((1 / abs(T)) * E_g[g] + E_gtw[g,t,w] - xi_gtw[g,t,w] * q_gtw[g,t,w] == 0, name="1.5g") 
+                m.addConstr(xi_gtw[g,t,w] * q_gtw[g,t,w] - (1 / abs(T)) * E_g[g] - E_gtw[g,t,w] == 0, name="1.5g") 
 
         for w in range(W):
             m.addConstr(((beta * pi_w[w]) / (1 - v)) - Delta_gw[g,w] - theta_gw[g,w] == 0, name="1.5e")
 
-            m.addConstr(- (beta - Delta_gw[g,w] - 1) * i_g[g] - gp.quicksum( eta_gtw[g,t,w] * rho_gtw[g,t,w] for t in range(T) for w in range(W)) - phi_g[g] == 0, name="1.5b")
+            m.addConstr(- (1 - beta) * i_g[g] - gp.quicksum(Delta_gw[g,w] * i_g[g] for w in range(W)) + \
+                         gp.quicksum( eta_gtw[g,t,w] * rho_gtw[g,t,w] for t in range(T) for w in range(W)) - phi_g[g] == 0, name="1.5b")
 
         m.addConstr(- beta + gp.quicksum(Delta_gw[g,w] for w in range(W)) == 0, name="1.5f")
-
-    ##Different way 1.5c could be written, gives same results
-
-    # for t in range(T):
-    #     for w in range(W):
-    #         m.addConstr(gp.quicksum(mu_gtw[g,t,w] - nu_min_gtw[g,t,w] + nu_max_gtw[g,t,w] for g in range(G)) == 0, name="1.5c") 
 
     ## Big-M complementarity constraints
 
@@ -272,11 +261,11 @@ def Model(pi_w, tau_tw, beta_tw, c_g, i_g, i_j, alpha_t, rho_gtw, rho_jtw, q_g0,
         for t in range(T):
             for w in range(W):
                 m.addConstr(rho_gtw[g,t,w] * (q_g0[g] + q_gbar[g]) - q_gtw[g,t,w] >= 0, name="1.6a")
-                # m.addConstr(rho_gtw[g,t,w] * (q_g0[g] + q_gbar[g]) - q_gtw[g,t,w] <= M_p1 * (1 - psi_bar_gtw[g,t,w]), name="1.6b")  #This Big-M constraint is makes the model infeasible
+                m.addConstr(rho_gtw[g,t,w] * (q_g0[g] + q_gbar[g]) - q_gtw[g,t,w] <= M_p1 * (1 - psi_bar_gtw[g,t,w]), name="1.6b") 
                 m.addConstr(eta_gtw[g,t,w] <= M_d1 * psi_bar_gtw[g,t,w], name="1.6c")
 
                 m.addConstr(E_gtw[g,t,w] + epsilon_max_g[g] >= 0, name="1.6d")
-                # m.addConstr(E_gtw[g,t,w] + epsilon_max_g[g] <= M_p2 * (1 - psi_min_gtw[g,t,w]), name="1.6e")  #This Big-M constraint is makes the model infeasible
+                m.addConstr(E_gtw[g,t,w] + epsilon_max_g[g] <= M_p2 * (1 - psi_min_gtw[g,t,w]), name="1.6e")  #This Big-M constraint is makes the model infeasible
                 m.addConstr(nu_min_gtw[g,t,w] <= M_d2 * psi_min_gtw[g,t,w], name="1.6f")
 
                 m.addConstr(epsilon_max_g[g] - E_gtw[g,t,w] >= 0, name="1.6g")
@@ -297,7 +286,7 @@ def Model(pi_w, tau_tw, beta_tw, c_g, i_g, i_j, alpha_t, rho_gtw, rho_jtw, q_g0,
 
         m.addConstr(epsilon_cap_g[g] - E_g[g] >= 0, name="1.6y")                            
         m.addConstr(epsilon_cap_g[g] - E_g[g] <= M_p9 * (1 - psi_g_cap[g]), name="1.6z")
-        # m.addConstr(nu_g_cap[g] <= M_d9 * psi_g_cap[g], name="1.6aa")     #This Big-M constraint is makes the model infeasible
+        m.addConstr(nu_g_cap[g] <= M_d9 * psi_g_cap[g], name="1.6aa")    
 
         for w in range(W):
 
@@ -318,13 +307,14 @@ def Model(pi_w, tau_tw, beta_tw, c_g, i_g, i_j, alpha_t, rho_gtw, rho_jtw, q_g0,
     for j in range(J):
         for t in range(T):
             for w in range(W):
-                m.addConstr((beta - (Delta_jw[j,w] / pi_w[w]) - 1) * pi_w[w] * tau_tw[t,w] * (p_tw[t,w] + (conjectural_t[t] * q_jtw[j,t,w])) \
-                            + eta_jtw[j,t,w] - zeta_jtw[j,t,w] == 0, name="1.10a")
+                m.addConstr(-(1 - beta) * (pi_w[w] * tau_tw[t,w] * (p_tw[t,w] + (conjectural_t[t] * q_jtw[j,t,w]))) - \
+                            Delta_jw[j,w] * (tau_tw[t,w] * (p_tw[t,w] + (conjectural_t[t] * q_jtw[j,t,w]))) + eta_jtw[j,t,w] - zeta_jtw[j,t,w] == 0, name="1.10a")
 
         for w in range(W):
             m.addConstr((beta * pi_w[w]) / (1 - v) - Delta_jw[j,w] - theta_jw[j,w] == 0, name="1.10c")
 
-            m.addConstr(- (beta - Delta_jw[j,w] - 1) * i_j[j] - gp.quicksum( eta_jtw[j,t,w] * rho_jtw[j,t,w] for t in range(T) for w in range(W)) - phi_j[j] == 0, name="1.10b")
+            m.addConstr(- (1 - beta) * i_j[j] - gp.quicksum(Delta_jw[j,w] * i_j[j] for w in range(W)) + \
+                         gp.quicksum( eta_jtw[j,t,w] * rho_jtw[j,t,w] for t in range(T) for w in range(W)) - phi_j[j] == 0, name="1.5b")
 # 
         m.addConstr(- beta + gp.quicksum(Delta_jw[j,w] for w in range(W)) == 0, name="1.10d")
 
@@ -384,42 +374,42 @@ def Model(pi_w, tau_tw, beta_tw, c_g, i_g, i_j, alpha_t, rho_gtw, rho_jtw, q_g0,
         m.printAttr('X')
 
         ## Checking complementarity slackness conditions
-
+        tolerance = 10 ** -8
         for g in range(G):
             for t in range(T):
                 for w in range(W):
                     Slack1 = eta_gtw[g,t,w].X * (rho_gtw[g,t,w] * (q_g0[g] + q_gbar[g].X) - q_gtw[g,t,w].X)
-                    if Slack1 != 0:
+                    if abs(Slack1) > tolerance:
                         print("Complementarity slackness condition 1 is violated", "Comparison:", "Dual:", eta_gtw[g,t,w].X, "Expression:", (rho_gtw[g,t,w] * (q_g0[g] + q_gbar[g].X) - q_gtw[g,t,w].X))
                     
                     Slack2 = nu_min_gtw[g,t,w].X * (E_gtw[g,t,w].X + epsilon_max_g[g])
-                    if Slack2 != 0:
+                    if abs(Slack2) > tolerance:
                         print("Complementarity slackness condition 2 is violated", "Comparison:", "Dual:", nu_min_gtw[g,t,w].X, "Expression:", (E_gtw[g,t,w].X + epsilon_max_g[g]))
 
                     Slack3 = nu_max_gtw[g,t,w].X * (epsilon_max_g[g] - E_gtw[g,t,w].X)
-                    if Slack3 != 0:
+                    if abs(Slack3) > tolerance:
                         print("Complementarity slackness condition 3 is violated", "Comparison:", "Dual:", nu_max_gtw[g,t,w].X, "Expression:", (epsilon_max_g[g] - E_gtw[g,t,w].X))
 
                     Slack4 = zeta_gtw[g,t,w].X * (q_gtw[g,t,w].X)
-                    if Slack4 != 0:
+                    if abs(Slack4) > tolerance:
                         print("Complementarity slackness condition 4 is violated", "Comparison:", "Dual:", zeta_gtw[g,t,w].X, "Expression:", (q_gtw[g,t,w].X))
 
             Slack5 = phi_g[g].X * (q_gbar[g].X)
-            if Slack5 != 0:
+            if abs(Slack5) > tolerance:
                 print("Complementarity slackness condition 5 is violated", "Comparison:", "Dual:", phi_g[g].X, "Expression:", (q_gbar[g].X))
 
             Slack8 = nu_g_min[g].X * (E_g[g].X)
-            if Slack8 != 0:
+            if abs(Slack8) > tolerance:
                 print("Complementarity slackness condition 8 is violated", "Comparison:", "Dual:", nu_g_min[g].X, "Expression:", (E_g[g].X))
                     
             Slack9 = nu_g_cap[g].X * (epsilon_cap_g[g] - E_g[g].X)
-            if Slack9 != 0:
+            if abs(Slack9) > tolerance:
                 print("Complementarity slackness condition 9 is violated", "Comparison:", "Dual:", nu_g_cap[g].X, "Expression:", (epsilon_cap_g[g] - E_g[g].X))
 
             for w in range(W):
                     
                 Slack6 = theta_gw[g,w].X * gamma_gw[g,w].X
-                if Slack6 != 0:
+                if abs(Slack6) > tolerance:
                     print("Complementarity slackness condition 6 is violated", "Comparison:", "Dual:", theta_gw[g,w].X, "Expression:", gamma_gw[g,w].X)
 
                 #Couldn't get the slackness condition for the profit function to work properly, because of the if statement, but if just printed then the values are 0 a
@@ -436,21 +426,21 @@ def Model(pi_w, tau_tw, beta_tw, c_g, i_g, i_j, alpha_t, rho_gtw, rho_jtw, q_g0,
             for t in range(T):
                 for w in range(W):
                     Slack11 = eta_jtw[j,t,w].X * (rho_jtw[j,t,w] * (q_j0[j] + q_jbar[j].X) - q_jtw[j,t,w].X)
-                    if Slack11 != 0:
+                    if abs(Slack11) > tolerance:
                         print("Complementarity slackness condition 11 is violated", "Comparison:", "Dual:", eta_jtw[j,t,w].X, "Expression:", (rho_jtw[j,t,w] * (q_j0[j] + q_jbar[j].X) - q_jtw[j,t,w].X))
                     
                     Slack12 = zeta_jtw[j,t,w].X * (q_jtw[j,t,w].X)
-                    if Slack12 != 0:
+                    if abs(Slack12) > tolerance:
                         print("Complementarity slackness condition 12 is violated", "Comparison:", "Dual:", zeta_jtw[j,t,w].X, "Expression:", q_jtw[j,t,w].X)
 
             Slack13 = phi_j[j].X * (q_jbar[j].X)
-            if Slack13 != 0:
+            if abs(Slack13) > tolerance:
                 print("Complementarity slackness condition 13 is violated", "Comparison:", "Dual:", phi_j[j].X, "Expression:", q_jbar[j].X)
 
             for w in range(W):
 
                 Slack14 = theta_jw[j,w].X * gamma_jw[j,w].X
-                if Slack14 != 0:
+                if abs(Slack14) > tolerance:
                     print("Complementarity slackness condition 14 is violated", "Comparison:", "Dual:", theta_jw[j,w].X, "Expression:", gamma_jw[j,w].X)
 
                 Slack15 = Delta_jw[j,w].X * (gamma_jw[j,w].X + gp.quicksum(p_tw[t,w].X * q_jtw[j,t,w].X for t in range(T)) - i_j[j] * q_jbar[j].X - sigma_j[j].X)
@@ -531,6 +521,10 @@ print("New Conventional Capacity:", New_CC)
 print("New Renewable Capacity:", New_CR)
 
 sum_QC, sum_QR, sum_All = np.sum(Q_C, axis=(1,2)), np.sum(Q_R, axis=(1,2)), np.sum(All, axis=(1,2))
+Average_Price_t, Average_Price_S = np.mean(Price, axis=1), np.mean(Price, axis=0)
+Time_QC, Time_QR, Time_All = np.sum(Q_C, axis=(0,2)), np.sum(Q_R, axis=(0,2)), np.sum(All, axis=(0,2))
+
+profit_t = (Average_Price_t * Time_QC) + (Average_Price_t * Time_QR) - (Time_All * 75) - (Time_QC * 20)
 
 print("The objective value is:", obj * 10 ** -6, "mEuro")
 print("Quantities produced by each conventional generator", sum_QC)
@@ -538,23 +532,28 @@ print("Bought emission allowance (during) for each conventional generator", sum_
 print("Quantities produced by each renewable generator", sum_QR)
 
 print("Total demand by scenario:", np.sum(Demand, axis=(0)))
-print("Total price by scenario:", np.sum(Price, axis=(0)))
+print("Average Price by scenario:", Average_Price_S)
+print("Average Price over Time:", Average_Price_t)
 print("Total conventional quantity produced by scenario:", np.sum(Q_C, axis=(0,1)))
 print("Bought emission allowance for each scenario", np.sum(All, axis=(0,1)))
 print("Total renewable quantity produced by scenario:", np.sum(Q_R, axis=(0,1)))
 
+print("Profit obtained in each timestep:", profit_t)
+
 ###----------------------------------------------------------------------Plotting---------------------------------------------------------------------------###
 
-fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(12, 8))
+fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(18, 8))
 
-bar_l0 = ('Con1', 'Con2', 'Con3', 'Ren1', 'Ren2', 'Ren3')
-bar_l1 = ['Conv', '_Conv', '_Conv', 'Ren', '_Ren', '_Ren']
-bar_c1 = ['tab:red', 'tab:red', 'tab:red', 'tab:blue', 'tab:blue', 'tab:blue']
-bar_l2 = ['Sce1', 'Sce2', 'Sce3']
-bar_l3 = ['Con1', 'Con2', 'Con3']
+bar_l0 = ['Con{}'.format(i) for i in range(1, G+1)] + ['Ren{}'.format(j) for j in range(1, J+1)]
+bar_l1 = ['Conv'] + ['_Conv'] * (G - 1) + ['Ren'] + ['_Ren'] * (J - 1)
+bar_c1 = ['tab:red'] * G + ['tab:blue'] * J
+bar_l2 = ['S{}'.format(i) for i in range(1, W+1)]
+bar_l3 = ['Con{}'.format(i) for i in range(1, G+1)]
 
-bottom1 = np.zeros(3)
-bottom2 = np.zeros(3)
+t = np.arange(T)  # Time periods
+
+bottom1 = np.zeros(W)
+bottom2 = np.zeros(G)
 
 Quantities = {'Ren': np.sum(Q_R, axis=(0,1)) ,'Conv': np.sum(Q_C, axis=(0,1))}
 Emissions = {'Prior': Pre_All, 'During': np.sum(All, axis=(1,2))}
@@ -571,19 +570,38 @@ for boolean, weight_count in Emissions.items():
     p2 = axs[1,1].bar(bar_l3, weight_count, label=boolean, bottom=bottom2)
     bottom2 += weight_count
 
-axs[0,0].set_title("Quantity Produced by Generators")
-axs[0,0].set_ylabel('Quantity produced (MWh)')
-axs[0,0].legend(title='Generator type', loc="upper left")
+axs[0,2].plot(t, Average_Price_t, label='Average Price', marker='o', linestyle='-')
 
-axs[1,0].set_ylabel('New capacity (MW)')
+axs[1,2].plot(t, profit_t, label='Average Price', marker='o', linestyle='-')
+
+axs[0,0].set_title("Quantity Produced by Generators")
+axs[0,0].set_ylabel('Quantity produced [MWh]')
+axs[0,0].legend(title='Generator type', loc="upper left")
+axs[0,0].ticklabel_format(style='sci', axis='y', scilimits=(4, 4))
+
+axs[1,0].set_ylabel('New capacity [MW]')
 axs[1,0].legend(title='Generator type', loc="upper left")
+axs[1,0].ticklabel_format(style='sci', axis='y', scilimits=(3, 3))
 
 axs[0,1].set_title("Quantity Produced by scenario")
-axs[0,1].set_ylabel('Quantity produced (MWh)')
+axs[0,1].set_ylabel('Quantity produced [MWh]')
 axs[0,1].legend(title='Generator type', loc="upper left")
+axs[0,1].ticklabel_format(style='sci', axis='y', scilimits=(4, 4))
 
-axs[1,1].set_ylabel('Emission allowances (tons)')
+axs[1,1].set_ylabel('Emission allowances [tons]')
 axs[1,1].legend(title='Allowance type', loc="upper left")
+axs[1,1].ticklabel_format(style='sci', axis='y', scilimits=(4, 4))
 
+axs[0,2].set_title("Average Price over Time")
+axs[0,2].set_ylabel('Average Prices [€]')
+axs[0,2].set_xlabel('Time Periods [t]')
+axs[0,2].legend(loc="upper left")
+axs[0,2].set_xticks(t)
+
+axs[1,2].set_ylabel('Profits [€]')
+axs[1,2].set_xlabel('Time Periods [t]')
+axs[1,2].legend(loc="upper left")
+axs[1,2].set_xticks(t)
+axs[1,2].ticklabel_format(style='sci', axis='y', scilimits=(5, 5))
 
 plt.show()
