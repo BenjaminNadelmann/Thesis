@@ -98,7 +98,7 @@ flat_xi_gtw = Xi_gtw.flatten()
 xi_gtw = {(i // Xi_gtw.shape[1] // Xi_gtw.shape[2], (i // Xi_gtw.shape[2]) % Xi_gtw.shape[1], i % Xi_gtw.shape[2]): flat_xi_gtw[i] for i in range(len(flat_xi_gtw))}
 # print(xi_gtw)
 
-v = 0 #Right Now it works up until v = 1/3 for Phi = -1 and v = 0 for Phi = 0 
+v = 0.95 #Right Now it works up until v = 1/3 for Phi = -1 and v = 0 for Phi = 0 
 beta = 1 #When == 0 then the model is risk neutral and the slackness conditions 7 and 15 aren't violated
 
 ###---------------------------------------------------Paramter parts that currently makes the model infeasible-----------------------------------------------------###
@@ -223,11 +223,11 @@ def Model(pi_w, tau_tw, beta_tw, c_g, i_g, alpha_t, rho_gtw, q_g0, conjectural_t
         for w in range(W):
             m.addConstr(((beta * pi_w[w]) / (1 - v)) - Delta_gw[g,w] - theta_gw[g,w] == 0, name="1.5e")
 
-            # m.addConstr( (1 - beta) * i_g[g] + gp.quicksum(Delta_gw[g,w] * i_g[g] for w in range(W)) - \
-            #      gp.quicksum( eta_gtw[g,t,w] * rho_gtw[g,t,w] for t in range(T) for w in range(W)) - phi_g[g] == 0, name="1.5b")
+            m.addConstr( (1 - beta) * i_g[g] + gp.quicksum(Delta_gw[g,w] * i_g[g] for w in range(W)) - \
+                 gp.quicksum( eta_gtw[g,t,w] * rho_gtw[g,t,w] for t in range(T) for w in range(W)) - phi_g[g] == 0, name="1.5b")
 
-            m.addConstr(- (1 - beta) * i_g[g] - gp.quicksum(Delta_gw[g,w] * i_g[g] for w in range(W)) + \
-                         gp.quicksum( eta_gtw[g,t,w] * rho_gtw[g,t,w] for t in range(T) for w in range(W)) - phi_g[g] == 0, name="1.5b")
+            # m.addConstr(- (1 - beta) * i_g[g] - gp.quicksum(Delta_gw[g,w] * i_g[g] for w in range(W)) + \
+            #              gp.quicksum( eta_gtw[g,t,w] * rho_gtw[g,t,w] for t in range(T) for w in range(W)) - phi_g[g] == 0, name="1.5b")
 
         m.addConstr(- beta + gp.quicksum(Delta_gw[g,w] for w in range(W)) == 0, name="1.5f")
 
