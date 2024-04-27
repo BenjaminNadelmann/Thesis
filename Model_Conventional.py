@@ -10,8 +10,8 @@ from scipy.stats import multivariate_normal
 ### Initialize parameter values
 
 G = 3 #Number of Conventional Generators
-T = 10 #Number of Timesteps
-W = 10 #Number of Scenarios
+T = 3 #Number of Timesteps
+W = 3 #Number of Scenarios
 np.random.seed(221)
 
 pi_w = {i: 1/W for i in range(W)}
@@ -67,7 +67,7 @@ rho_gtw = {(i // Rho_gtw.shape[1] // Rho_gtw.shape[2], (i // Rho_gtw.shape[2]) %
 # q_g0 = {g : 500 for g in range(G)} 
 q_g0 = {0: 2030, 1: 2460, 2: 2275}
 
-Phi = -0
+Phi = -1
 conjectural_t = {i: -alpha_t[i]*(1+Phi) for i in range(T)} #Not sure if these parameters are actually parameters
 
 P_CO2_max = 30 #If price is 5 you see som prior emission allowance being bought
@@ -87,16 +87,6 @@ for t in range(T):
 epsilon_max_g = {0: 10000, 1: 12000, 2: 11000}
 epsilon_cap_g = {0: 10000, 1: 12000, 2: 11000}
 
-#xi_gtw = {(g, t, w): 1 for g in range(G) for t in range(T) for w in range(W)}
-# values_for_xi = [0.7, 0.9, 0.8] #Should be changed similarly as beta_tw
-
-# xi_gtw = {}
-
-# for g in range(G):
-#     for t in range(T):
-#         for w in range(W):
-#             xi_gtw[(g, t, w)] = values_for_xi[g]
-
 Xi_gtw_mean =  np.array([0.7, 0.9, 0.8])
 Xi_gtw_std = 0.001
 Xi_gtw_sigma = np.diag(Xi_gtw_mean * Xi_gtw_std)
@@ -106,10 +96,10 @@ Xi_gtw = multivariate_normal(mean = Xi_gtw_mean, cov = Xi_gtw_sigma).rvs(size =T
 flat_xi_gtw = Xi_gtw.flatten()
 
 xi_gtw = {(i // Xi_gtw.shape[1] // Xi_gtw.shape[2], (i // Xi_gtw.shape[2]) % Xi_gtw.shape[1], i % Xi_gtw.shape[2]): flat_xi_gtw[i] for i in range(len(flat_xi_gtw))}
-# print(rho_gtw)
+# print(xi_gtw)
 
-v = 0.1 #Right Now it works up until v = 1/3 for Phi = -1 and v = 0 for Phi = 0 
-beta = 0.5 #When == 0 then the model is risk neutral and the slackness conditions 7 and 15 aren't violated
+v = 0 #Right Now it works up until v = 1/3 for Phi = -1 and v = 0 for Phi = 0 
+beta = 1 #When == 0 then the model is risk neutral and the slackness conditions 7 and 15 aren't violated
 
 ###---------------------------------------------------Paramter parts that currently makes the model infeasible-----------------------------------------------------###
 
@@ -181,22 +171,22 @@ def Model(pi_w, tau_tw, beta_tw, c_g, i_g, alpha_t, rho_gtw, q_g0, conjectural_t
     M_p2 = 18000         #Reasoning: With the max E_gtw of 6000 and a cap of 5000 then 12000 should be sufficient #only used for conventional generators
     M_p3 = 18000         #Reasoning: With an emission cap of 5000 then 6000 seems fullfilling #only used for conventional generators
     M_p4 = 7500          #Reasoning: Production quantity - can be quite low as it's the maximum for each timestep and scenario    
-    M_p5 = 21000         #Reasoning: As the new capacity shouldn't be too high and the initial max is 5370 then 7000 should be sufficient
-    M_p6 = 870000        #Reasoning: Not really sure but as it have an impact on the profit then through trial & error 3250000 should be sufficient #Results differ greatly depending on value
+    M_p5 = 10000         #Reasoning: As the new capacity shouldn't be too high and the initial max is 5370 then 7000 should be sufficient
+    M_p6 = 1000000       #Reasoning: Not really sure but as it have an impact on the profit then through trial & error 3250000 should be sufficient #Results differ greatly depending on value
     M_p7 = 7000          #Reasoning: Value doesn't really change much no matter what input is given. Probably because of slackness condition violation
-    M_p8 = 180000         #Reasoning: Started at 12000 ended at 2500 to not have any numerical mistakes #only used for conventional generators
-    M_p9 = 180000         #Reasoning: With an emission cap of 5000 then 6000 seems fullfilling #only used for conventional generators
+    M_p8 = 18000         #Reasoning: Started at 12000 ended at 2500 to not have any numerical mistakes #only used for conventional generators
+    M_p9 = 18000         #Reasoning: With an emission cap of 5000 then 6000 seems fullfilling #only used for conventional generators
     
     ## Dual - 3 times the primary values besides, M_d5 which is 100000 (needed for the dual of investment costs), and m_d6 which doesn't need the higher dual value
-    M_d1 = 20000        
-    M_d2 = 18000        #only used for conventional generators
-    M_d3 = 18000        #only used for conventional generators
-    M_d4 = 20000      
-    M_d5 = 60000        
-    M_d6 = 45000     
-    M_d7 = 20000    
-    M_d8 = 18000        #only used for conventional generators
-    M_d9 = 18000        #only used for conventional generators
+    M_d1 = 10000        
+    M_d2 = 9000        #only used for conventional generators
+    M_d3 = 9000         #only used for conventional generators
+    M_d4 = 10000      
+    M_d5 = 30000        
+    M_d6 = 22500     
+    M_d7 = 10000    
+    M_d8 = 9000         #only used for conventional generators
+    M_d9 = 9000         #only used for conventional generators
 
     # M_p1, M_p2, M_p3, M_p4, M_p5, M_p6, M_p7, M_p8, M_p9 = 20000000, 20000000, 20000000, 20000000, 20000000, 20000000, 20000000, 20000000, 20000000
     # M_d1, M_d2, M_d3, M_d4, M_d5, M_d6, M_d7, M_d8, M_d9 = 20000000, 20000000, 20000000, 20000000, 20000000, 20000000, 20000000, 20000000, 20000000
@@ -233,7 +223,7 @@ def Model(pi_w, tau_tw, beta_tw, c_g, i_g, alpha_t, rho_gtw, q_g0, conjectural_t
         for w in range(W):
             m.addConstr(((beta * pi_w[w]) / (1 - v)) - Delta_gw[g,w] - theta_gw[g,w] == 0, name="1.5e")
 
-            # m.addConstr(- (beta - 1) * i_g[g] + gp.quicksum(Delta_gw[g,w] * i_g[g] for w in range(W)) - \
+            # m.addConstr( (1 - beta) * i_g[g] + gp.quicksum(Delta_gw[g,w] * i_g[g] for w in range(W)) - \
             #      gp.quicksum( eta_gtw[g,t,w] * rho_gtw[g,t,w] for t in range(T) for w in range(W)) - phi_g[g] == 0, name="1.5b")
 
             m.addConstr(- (1 - beta) * i_g[g] - gp.quicksum(Delta_gw[g,w] * i_g[g] for w in range(W)) + \
@@ -433,6 +423,8 @@ print("Bought emission allowance for each scenario", np.sum(All, axis=(0,1)))
 
 print("Profit obtained in each timestep:", profit_t)
 
+np.savetxt("Conventional_Quantity.txt", sum_QC, delimiter=",")
+
 ###----------------------------------------------------------------------Plotting---------------------------------------------------------------------------###
 
 fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(18, 8))
@@ -470,16 +462,20 @@ axs[1,2].plot(t, profit_t, label='Average Price', marker='o', linestyle='-')
 axs[0,0].set_title("Quantity Produced by Generators")
 axs[0,0].set_ylabel('Quantity produced [MWh]')
 axs[0,0].legend(title='Generator type', loc="upper left")
+axs[0,0].ticklabel_format(style='sci', axis='y', scilimits=(4, 4))
 
 axs[1,0].set_ylabel('New capacity [MW]')
 axs[1,0].legend(title='Generator type', loc="upper left")
+axs[1,0].ticklabel_format(style='sci', axis='y', scilimits=(3, 3))
 
 axs[0,1].set_title("Quantity Produced by scenario")
 axs[0,1].set_ylabel('Quantity produced [MWh]')
 axs[0,1].legend(title='Generator type', loc="upper left")
+axs[0,1].ticklabel_format(style='sci', axis='y', scilimits=(4, 4))
 
 axs[1,1].set_ylabel('Emission allowances [tons]')
 axs[1,1].legend(title='Allowance type', loc="upper left")
+axs[1,1].ticklabel_format(style='sci', axis='y', scilimits=(4, 4))
 
 axs[0,2].set_title("Average Price over Time")
 axs[0,2].set_ylabel('Average Prices [€]')
@@ -491,5 +487,9 @@ axs[1,2].set_ylabel('Profits [€]')
 axs[1,2].set_xlabel('Time Periods [t]')
 axs[1,2].legend(loc="upper left")
 axs[1,2].set_xticks(t)
+axs[1,2].ticklabel_format(style='sci', axis='y', scilimits=(5, 5))
+
+plt.savefig('Conventional_Generators.png')
 
 plt.show()
+
