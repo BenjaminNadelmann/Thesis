@@ -1,4 +1,1 @@
-# Thesis
-Bachelor Thesis 
-
-Test
+# Bachelor Thesis
